@@ -59,6 +59,13 @@ function ohMinimize() {
 	UIHacks.OhMinimize(); // 最小化
 }
 
+/* js中最小化按钮调用示例
+if (typeof ohMinimize === 'function') {
+	ohMinimize();
+} else if (typeof UIHacks !== 'undefined') {
+	UIHacks.WindowState = 1;
+}
+*/
 
 function ohClose() {
 	if (!uiHacks || typeof UIHacks.OhClose !== 'function') {
@@ -66,3 +73,11 @@ function ohClose() {
 	}
 	UIHacks.OhClose(); // 退出
 }
+
+/* js中退出按钮调用示例
+if (typeof ohClose === 'function') {
+	ohClose();
+} else {
+	fb.Exit();
+}
+*/

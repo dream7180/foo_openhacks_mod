@@ -51,3 +51,18 @@ function toggleFullscreen() {
 	if (!uiHacks) return;
     UIHacks.ToggleFullscreen(); // 切换全屏
 }
+
+function ohMinimize() {
+	if (!uiHacks || typeof UIHacks.OhMinimize !== 'function') {
+		return;
+	}
+	UIHacks.OhMinimize(); // 最小化
+}
+
+
+function ohClose() {
+	if (!uiHacks || typeof UIHacks.OhClose !== 'function') {
+		return;
+	}
+	UIHacks.OhClose(); // 退出
+}

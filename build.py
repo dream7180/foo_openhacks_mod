@@ -14,7 +14,7 @@ PROJECT_NAME = 'foo_openhacks_mod'
 def get_vs_install_dir():
     try:
         result = subprocess.run(
-            [VS_WHERE_EXE, '-latest', '-products', '*', '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64', '-property', 'installationPath'],
+            [VS_WHERE_EXE, '-latest', '-products', '*', '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64', '-version', '[17,18)', '-property', 'installationPath'],
             capture_output=True,
             text=True,
             check=True

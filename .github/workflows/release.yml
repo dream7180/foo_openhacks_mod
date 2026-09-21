@@ -63,7 +63,7 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v3
         with:
-          vs-version: latest
+          vs-version: '17'
 
       - name: Create foobar2000 components directory
         run: |

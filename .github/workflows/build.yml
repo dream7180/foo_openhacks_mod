@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true
   # Path to the solution file relative to the root of the project.
   SOLUTION_FILE_PATH: .
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
   # Configuration type to build.
   # You can convert this to a build matrix if you need coverage of multiple configuration types.

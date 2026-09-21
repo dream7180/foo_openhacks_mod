@@ -1,0 +1,270 @@
+#include "pch.h"
+#include <sstream>
+#include "hacks_menu.h"
+#include "hacks_vars.h"
+#include "hacks_core.h"
+#include "win32_utils.h"
+
+namespace
+{
+static bool PopupMainMenu(HWND wnd)
+{
+    if (HMENU menu = OpenHacksMenu::Get().GenerateMenu())
+    {
+        POINT point = {};
+        ClientToScreen(wnd, &point);
+        const int32_t cmd = TrackPopupMenu(menu, TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RETURNCMD, point.x, point.y, 0, wnd, nullptr);
+        OpenHacksMenu::Get().ExecuteMenuCommand(cmd);
+        DestroyMenu(menu);
+        return true;
+    }
+
+    return false;
+}
+} // namespace
+
+bool OpenHacksCore::OnSysCommand(HWND wnd, WPARAM wp, LPARAM lp)
+{
+    UNREFERENCED_PARAMETER(lp);
+    const auto cmd = static_cast<UINT>(wp & 0xFFF0);
+    switch (cmd)
+    {
+    case SC_MOUSEMENU:
+        return PopupMainMenu(wnd);
+
+    default:
+        break;
+    }
+
+    return false;
+}
+
+LRESULT OpenHacksCore::OnNCHitTest(HWND wnd, WPARAM wp, LPARAM lp)
+{
+    // Check if resize should be disabled based on window state
+    bool shouldDisableResize = false;
+
+    if (OpenHacksVars::WindowConstraints().disableSizing)
+    {
+        shouldDisableResize = true;
+    }
+
+    if (OpenHacksVars::DisableResizeWhenMaximized)
+    {
+        bool isMaximized = Utility::IsMaximized(wnd) || mSavedWindowState.has_value();
+        if (isMaximized)
+            shouldDisableResize = true;
+    }
+    
+    if (OpenHacksVars::DisableResizeWhenFullscreen)
+    {
+        bool isFullscreen = Utility::IsFullscreen(wnd);
+        if (isFullscreen)
+            shouldDisableResize = true;
+    }
+    
+    if (shouldDisableResize)
+    {
+        return HTCLIENT;
+    }
+
+    const POINT cursor = {GET_X_LPARAM(lp), GET_Y_LPARAM(lp)};
+    const POINT border = GetBorderMetrics();
+    RECT rect = {};
+    GetWindowRect(mMainWindow, &rect);
+    enum EdgeMask
+    {
+        Left = 0b0001,
+        Right = 0b0010,
+        Top = 0b0100,
+        Bottom = 0b1000,
+    };
+
+    const auto result = Left * (cursor.x < (rect.left + border.x)) | Right * (cursor.x >= (rect.right - border.x)) | Top * (cursor.y < (rect.top + border.y)) |
+                        Bottom * (cursor.y >= (rect.bottom - border.y));
+    switch (result)
+    {
+    case Left:
+        return HTLEFT;
+    case Right:
+        return HTRIGHT;
+    case Top:
+        return HTTOP;
+    case Bottom:
+        return HTBOTTOM;
+    case Top | Left:
+        return HTTOPLEFT;
+    case Top | Right:
+        return HTTOPRIGHT;
+    case Bottom | Left:
+        return HTBOTTOMLEFT;
+    case Bottom | Right:
+        return HTBOTTOMRIGHT;
+    default:
+        return HTNOWHERE;
+    }
+}
+
+bool OpenHacksCore::OnSetCursor(HWND wnd, WPARAM wp, LPARAM lp)
+{
+    if (OpenHacksVars::MainWindowFrameStyle != WindowFrameStyleNoBorder)
+        return false;
+
+    // Check if resize should be disabled based on window state
+    bool shouldDisableResize = false;
+
+    if (OpenHacksVars::WindowConstraints().disableSizing)
+    {
+        shouldDisableResize = true;
+    }
+
+    if (OpenHacksVars::DisableResizeWhenMaximized)
+    {
+        bool isMaximized = Utility::IsMaximized(wnd) || mSavedWindowState.has_value();
+        if (isMaximized)
+            shouldDisableResize = true;
+    }
+
+    if (OpenHacksVars::DisableResizeWhenFullscreen)
+    {
+        bool isFullscreen = Utility::IsFullscreen(wnd);
+        if (isFullscreen)
+            shouldDisableResize = true;
+    }
+
+    if (shouldDisableResize)
+    {
+        return false;
+    }
+
+    const int32_t hittest = (int32_t)LOWORD(lp);
+    if (hittest == HTCLIENT)
+        return false;
+
+    if (hittest == HTTOP || hittest == HTBOTTOM)
+        SetCursor(LoadCursor(nullptr, IDC_SIZENS));
+    else if (hittest == HTLEFT || hittest == HTRIGHT)
+        SetCursor(LoadCursor(nullptr, IDC_SIZEWE));
+    else if (hittest == HTTOPLEFT || hittest == HTBOTTOMRIGHT)
+        SetCursor(LoadCursor(nullptr, IDC_SIZENWSE));
+    else if (hittest == HTTOPRIGHT || hittest == HTBOTTOMLEFT)
+        SetCursor(LoadCursor(nullptr, IDC_SIZENESW));
+    else
+        return false;
+
+    return true;
+}
+
+bool OpenHacksCore::OnSize(HWND wnd, WPARAM wp, LPARAM lp)
+{
+    return false;
+}
+
+LRESULT OpenHacksCore::OpenHacksMainWindowProc(HWND wnd, UINT msg, WPARAM wp, LPARAM lp)
+{
+    switch (msg)
+    {
+    case WM_ERASEBKGND: // Fix: White background flickering issue when maximizing
+        return 1; // end
+        
+    case WM_SYSCOMMAND:
+        if (OnSysCommand(wnd, wp, lp))
+            return 0;
+        // Disable sizing if configured
+        if (OpenHacksVars::WindowConstraints().disableSizing)
+        {
+            const auto cmd = static_cast<UINT>(wp & 0xFFF0);
+            if (cmd == SC_SIZE || cmd == SC_MAXIMIZE)
+                return 0;
+        }
+        break;
+
+    case WM_NCHITTEST:
+        return OnNCHitTest(wnd, wp, lp);
+
+    case WM_SETCURSOR:
+        if (OnSetCursor(wnd, wp, lp))
+            return 1;
+        break;
+
+    case WM_NCACTIVATE:
+        if (OpenHacksVars::MainWindowFrameStyle == WindowFrameStyleNoBorder)
+            return CallWindowProc(mMainWindowOriginProc, wnd, msg, wp, -1);
+        break;
+
+    case WM_NCCALCSIZE:
+        if (wp && (OpenHacksVars::MainWindowFrameStyle == WindowFrameStyleNoBorder))
+        {
+            DWORD style = GetWindowLongPtr(wnd, GWL_STYLE);
+            if (style & WS_THICKFRAME)
+            {
+                auto res = CallWindowProc(mMainWindowOriginProc, wnd, msg, wp, lp);
+                auto sz = (NCCALCSIZE_PARAMS*)(lp);
+                sz->rgrc[0].top += mBorderThickness.top;
+                return res;
+            }
+        }
+        break;
+
+    case WM_SIZE:
+        if (OnSize(wnd, wp, lp))
+            return 0;
+
+        // Fix: The problem of displaying under special conditions when the menu bar is set to hidden
+        if (mRebarWindow && mMainMenuWindow)
+        {
+            PostMessage(wnd, WM_USER + 1001, 0, 0);
+        }
+        break;
+
+    case WM_ACTIVATE:
+        if (LOWORD(wp) != WA_INACTIVE && mRebarWindow && mMainMenuWindow)
+        {
+            PostMessage(wnd, WM_USER + 1001, 0, 0);
+        }
+        break;
+
+    case WM_USER + 1001:
+    {
+        bool shouldShow = OpenHacksVars::ShowMainMenu;
+        bool isShowing = IsMenuBarVisible();
+        if (shouldShow != isShowing)
+        {
+            ShowOrHideMenuBar(shouldShow);
+        }
+        return 0;
+    } // end
+
+    case WM_GETMINMAXINFO:
+        {
+            const auto& constraints = OpenHacksVars::WindowConstraints();
+            auto* minmaxInfo = (MINMAXINFO*)lp;
+            // Apply minimum size constraints
+            if (constraints.enableMinSize)
+            {
+                if (constraints.minWidth > 0)
+                    minmaxInfo->ptMinTrackSize.x = constraints.minWidth;
+                if (constraints.minHeight > 0)
+                    minmaxInfo->ptMinTrackSize.y = constraints.minHeight;
+            }
+            // Apply maximum size constraints
+            if (constraints.enableMaxSize)
+            {
+                if (constraints.maxWidth > 0)
+                    minmaxInfo->ptMaxTrackSize.x = constraints.maxWidth;
+                if (constraints.maxHeight > 0)
+                    minmaxInfo->ptMaxTrackSize.y = constraints.maxHeight;
+            }
+        }
+        break;
+
+    case WM_DPICHANGED: // fixme: won't receive currently(DPI System aware).
+        OpenHacksVars::DPI = static_cast<uint32_t>(LOWORD(wp));
+        break;
+
+    default:
+        break;
+    }
+
+    return CallWindowProc(mMainWindowOriginProc, wnd, msg, wp, lp);
+}

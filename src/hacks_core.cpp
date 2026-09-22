@@ -17,16 +17,16 @@ void OpenHacksCore::Initialize()
         pfc::string8_fast errorMessage;
         if (mInitErrors & IncompatibleComponentInstalled)
         {
-            errorMessage << "\nOpenHacksMod 与 UIHacks 不兼容";
+            errorMessage << "\nOpenHacks is not compatible with UIHacks.";
         }
 
         if (mInitErrors & HooksInstallError)
         {
-            errorMessage << "\nwindows hook 安装失败: " << format_win32_error(mInstallHooksWin32Error) << "(0x"
+            errorMessage << "\nfailed to install windows hook: " << format_win32_error(mInstallHooksWin32Error) << "(0x"
                          << pfc::format_hex(mInstallHooksWin32Error, 8) << ")";
         }
 
-        popup_message_v2::g_complain(core_api::get_main_window(), "OpenHacksMod 初始化失败", errorMessage);
+        popup_message_v2::g_complain(core_api::get_main_window(), "OpenHacks init failed", errorMessage);
         return;
     }
 
